@@ -1,0 +1,97 @@
+version: "3"
+
+tasks:
+  create-local-cluster:
+    desc: "Creates a local Kubernetes cluster using KinD for development purposes."
+    cmds:
+      - echo "🚀 Initiating creation of a local Kubernetes cluster..."
+      - kind create cluster --config kind-config.yaml --name srekubecraft-observability
+      - kind get clusters
+    silent: true
+
+  setup-kube-context:
+    desc: "Configures the Kubernetes context to interact with the newly created local cluster."
+    cmds:
+      - echo "🔧 Configuring Kubernetes context for local cluster usage..."
+      - kubectl cluster-info --context kind-srekubecraft-observability
+    silent: true
+
+  delete-local-cluster:
+    desc: "Deletes the local Kubernetes cluster to clean up resources."
+    deps:
+      - setup-kube-context
+    cmds:
+      - echo "🗑️ Proceeding to delete the local Kubernetes cluster..."
+      - kind delete cluster -n srekubecraft-observability
+    silent: true
+
+  install-metric-server:
+    desc: "Installs the Kubernetes Metrics Server to enable resource usage monitoring."
+    deps:
+      - setup-kube-context
+    cmds:
+      - echo "📊 Deploying the Kubernetes Metrics Server..."
+      - helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+      - helm repo update
+      - helm install metrics-server metrics-server/metrics-server --namespace kube-system --set args[0]="--kubelet-insecure-tls"
+    silent: true
+  
+  add-helm-repos:
+    desc: "Adds the necessary Helm repositories for installing Prometheus and Grafana."
+    cmds:
+      - echo "🚀 Adding Helm repositories for Prometheus and Grafana..."
+      - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+      - helm repo add grafana https://grafana.github.io/helm-charts
+      - helm repo update
+    silent: true
+
+  create-namespace-monitoring:
+    desc: "Creates the monitoring namespace for Prometheus and Grafana."
+    cmds:
+      - echo "🚀 Creating the monitoring namespace..."
+      - kubectl create namespace monitoring
+    silent: true
+
+  install-loki:
+    desc: "Installs Loki for log aggregation and querying."
+    deps:
+      - add-helm-repos
+      - create-namespace-monitoring
+    cmds:
+      - echo "🚀 Installing Loki for log aggregation and querying..."
+      - helm install loki grafana/loki-stack --namespace monitoring --set grafana.enabled=true,prometheus.enabled=true
+    silent: true
+
+  install-nginx-ingress:
+    desc: "Installs the NGINX Ingress Controller for routing and load balancing."
+    cmds:
+      - echo "🚀 Installing NGINX Ingress Controller for routing and load balancing..."
+      - kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+    silent: true
+
+  install-tempo:
+    desc: "Installs Tempo for distributed tracing."
+    cmds:
+      - echo "🚀 Installing Tempo for distributed tracing..."
+      - helm install tempo grafana/tempo --namespace monitoring --values ./tempo/values.yaml
+    silent: true
+
+  install-grafana-agent:
+    desc: "Installs the Grafana Agent for metrics collection."
+    cmds:
+      - echo "🚀 Installing the Grafana Agent for metrics collection..."
+      - helm install grafana-agent grafana/grafana-agent --namespace monitoring --values ./grafana-agent/values.yaml
+    silent: true
+
+  full-deploy-local:
+    desc: "Executes a complete deployment of all components in the local cluster, ideal for testing or demonstration."
+    cmds:
+      - echo "🚀 Starting full deployment of all necessary components in the local cluster..."
+      - task: create-local-cluster
+      - task: setup-kube-context
+      - task: install-metric-server
+      - task: install-loki
+      - task: install-nginx-ingress
+      - task: install-tempo
+      - task: install-grafana-agent
+    silent: true

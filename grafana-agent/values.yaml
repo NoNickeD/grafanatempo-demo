@@ -1,0 +1,20 @@
+agent:
+  mode: flow
+
+traces:
+  enabled: true  # Enable tracing
+  configs:
+    - name: default
+      receivers:
+        otlp:
+          protocols:
+            http:
+            grpc:
+        jaeger:
+          protocols:
+            thrift_http:
+            grpc:
+            thrift_binary:
+            thrift_compact:
+      remote_write:
+        - endpoint: "http://tempo.monitoring:3100"  # Adjust with your Tempo service URL
